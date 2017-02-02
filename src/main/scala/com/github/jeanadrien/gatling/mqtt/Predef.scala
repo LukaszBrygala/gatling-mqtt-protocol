@@ -21,8 +21,8 @@ object Predef {
     def publish(topic : Expression[String], payload : Expression[Array[Byte]]) = PublishActionBuilder(topic, payload)
 
     def publishAndWait(
-        topic : Expression[String], payload : Expression[Array[Byte]]
-    ) = PublishAndWaitActionBuilder(topic, payload)
+        publishTopic : Expression[String], receiveTopic : Expression[String], payload : Expression[Array[Byte]]
+    ) = PublishAndWaitActionBuilder(publishTopic, receiveTopic, payload)
 
     def publishAndMeasure(
         topic : Expression[String], payload : Expression[Array[Byte]]

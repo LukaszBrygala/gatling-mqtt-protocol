@@ -20,7 +20,8 @@ import scala.util.{Failure, Success}
 class PublishAndWaitAction(
     mqttComponents : MqttComponents,
     coreComponents : CoreComponents,
-    topic         : Expression[String],
+    publishTopic  : Expression[String],
+    receiveTopic  : Expression[String],
     payload       : Expression[Array[Byte]],
     payloadFeedback : Array[Byte] => Array[Byte] => Boolean,
     qos           : QoS,
@@ -39,7 +40,8 @@ class PublishAndWaitAction(
         connection <- session("connection").validate[CallbackConnection]
         listener <- session("listener").validate[ActorRef]
         connectionId <- session("connectionId").validate[String]
-        resolvedTopic <- topic(session)
+        resolvedPublishTopic <- publishTopic(session)
+        resolvedReceiveTopic <- receiveTopic(session)
         resolvedPayload <- payload(session)
     } yield {
         implicit val messageTimeout = Timeout(timeout)
@@ -48,11 +50,11 @@ class PublishAndWaitAction(
 
         val requestName = "publish and wait"
 
-        logger.debug(s"${connectionId} : Execute ${requestName} Payload: ${resolvedPayload}")
+        logger.debug(s"${connectionId} : Execute ${requestName} Payload: ${resolvedPayload} Publish: ${resolvedPublishTopic} Receive: ${resolvedReceiveTopic}")
 
         val payloadCheck = payloadFeedback(resolvedPayload)
 
-        listener ? WaitForMessage(resolvedTopic, payloadCheck) onComplete { result =>
+        listener ? WaitForMessage(resolvedReceiveTopic, payloadCheck) onComplete { result =>
             val latencyTimings = timings(requestStartDate)
 
             statsEngine.logResponse(
@@ -62,28 +64,30 @@ class PublishAndWaitAction(
                 if (result.isSuccess) OK else KO,
                 None,
                 result match {
-                    case Success(_) => None
+                    case Success(_) =>
+                        logger.trace(s"${connectionId}: Wait for PUBLISH succeded")
+                        None
                     case Failure(t) if t.isInstanceOf[AskTimeoutException] =>
-                        logger.warn(s"${connectionId}: Wait for PUBLISH back from mqtt timed out on ${resolvedTopic}")
+                        logger.warn(s"${connectionId}: Wait for PUBLISH back from mqtt timed out on ${resolvedReceiveTopic}")
                         Some("Wait for PUBLISH timed out")
                     case Failure(t) =>
                         logger
-                            .warn(s"${connectionId}: Failed to receive PUBLISH back from mqtt on ${resolvedTopic}: ${t}")
+                            .warn(s"${connectionId}: Failed to receive PUBLISH back from mqtt on ${resolvedReceiveTopic}: ${t}")
                         Some(t.getMessage)
                 }
             )
 
             if (result.isFailure) {
-                listener ! CancelWaitForMessage(resolvedTopic, payloadCheck)
+                listener ! CancelWaitForMessage(resolvedReceiveTopic, payloadCheck)
             }
 
             next ! session
         }
 
-        connection.publish(resolvedTopic, resolvedPayload, qos, retain, Callback.onSuccess[Void] { _ =>
+        connection.publish(resolvedPublishTopic, resolvedPayload, qos, retain, Callback.onSuccess[Void] { _ =>
             // nop
         } onFailure { th =>
-            logger.warn(s"${connectionId}: Failed to publish on ${resolvedTopic}: ${th}")
+            logger.warn(s"${connectionId}: Failed to publish on ${resolvedPublishTopic}: ${th}")
             statsEngine.reportUnbuildableRequest(session, "publish", th.getMessage)
         })
     })

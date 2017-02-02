@@ -12,7 +12,8 @@ import scala.concurrent.duration._
   *
   */
 case class PublishAndWaitActionBuilder(
-    topic : Expression[String],
+    publishTopic : Expression[String],
+    receiveTopic : Expression[String],
     payload : Expression[Array[Byte]],
     payloadFeedback : Array[Byte] => Array[Byte] => Boolean = PayloadComparison.sameBytesContent,
     qos : QoS = QoS.AT_MOST_ONCE,
@@ -41,7 +42,8 @@ case class PublishAndWaitActionBuilder(
         new PublishAndWaitAction(
             mqttComponents(ctx),
             ctx.coreComponents,
-            topic,
+            publishTopic,
+            receiveTopic,
             payload,
             payloadFeedback,
             qos,
