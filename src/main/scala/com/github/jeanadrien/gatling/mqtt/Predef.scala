@@ -16,6 +16,8 @@ object Predef {
 
     def connect = ConnectActionBuilder()
 
+    def disconnect = DisconnectActionBuilder()
+
     def subscribe(topic : Expression[String]) = SubscribeActionBuilder(topic)
 
     def publish(topic : Expression[String], payload : Expression[Array[Byte]]) = PublishActionBuilder(topic, payload)
