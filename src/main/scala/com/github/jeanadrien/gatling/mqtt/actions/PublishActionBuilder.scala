@@ -1,6 +1,7 @@
 package com.github.jeanadrien.gatling.mqtt.actions
 
 import com.softwaremill.quicklens._
+import io.gatling.commons.validation._
 import io.gatling.core.action.Action
 import io.gatling.core.session._
 import io.gatling.core.structure.ScenarioContext
@@ -13,7 +14,8 @@ case class PublishActionBuilder(
     topic : Expression[String],
     payload : Expression[Array[Byte]],
     qos : QoS = QoS.AT_MOST_ONCE,
-    retain : Boolean = false
+    retain : Boolean = false,
+    requestName : Expression[String] = _ => Success("publish")
 ) extends MqttActionBuilder {
 
     def qos(newQos : QoS) : PublishActionBuilder = this.modify(_.qos).setTo(newQos)
@@ -26,6 +28,8 @@ case class PublishActionBuilder(
 
     def retain(newRetain : Boolean) : PublishActionBuilder = this.modify(_.retain).setTo(newRetain)
 
+    def requestName(newName : Expression[String]) : PublishActionBuilder = this.modify(_.requestName).setTo(newName)
+
     override def build(
         ctx : ScenarioContext, next : Action
     ) : Action = {
@@ -36,6 +40,7 @@ case class PublishActionBuilder(
             payload,
             qos,
             retain,
+            requestName,
             next
         )
     }

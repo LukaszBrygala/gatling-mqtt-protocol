@@ -1,6 +1,7 @@
 package com.github.jeanadrien.gatling.mqtt.actions
 
 import com.softwaremill.quicklens._
+import io.gatling.commons.validation._
 import io.gatling.core.action.Action
 import io.gatling.core.session._
 import io.gatling.core.structure.ScenarioContext
@@ -18,7 +19,8 @@ case class PublishAndWaitActionBuilder(
     payloadFeedback : Array[Byte] => Array[Byte] => Boolean = PayloadComparison.sameBytesContent,
     qos : QoS = QoS.AT_MOST_ONCE,
     retain : Boolean = false,
-    timeout : FiniteDuration = 60 seconds
+    timeout : FiniteDuration = 60 seconds,
+    requestName : Expression[String] = _ => Success("publish and wait")
 ) extends MqttActionBuilder {
 
     def qos(newQos : QoS) : PublishAndWaitActionBuilder = this.modify(_.qos).setTo(newQos)
@@ -36,6 +38,8 @@ case class PublishAndWaitActionBuilder(
 
     def timeout(duration : FiniteDuration) : PublishAndWaitActionBuilder = this.modify(_.timeout).setTo(duration)
 
+    def requestName(newName : Expression[String]) : PublishAndWaitActionBuilder = this.modify(_.requestName).setTo(newName)
+
     override def build(
         ctx : ScenarioContext, next : Action
     ) : Action = {
@@ -49,6 +53,7 @@ case class PublishAndWaitActionBuilder(
             qos,
             retain,
             timeout,
+            requestName,
             next
         )
     }

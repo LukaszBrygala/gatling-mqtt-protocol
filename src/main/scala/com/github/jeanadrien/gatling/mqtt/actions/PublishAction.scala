@@ -15,9 +15,10 @@ class PublishAction(
     mqttComponents : MqttComponents,
     coreComponents : CoreComponents,
     topic          : Expression[String],
-    payload : Expression[Array[Byte]],
+    payload        : Expression[Array[Byte]],
     qos            : QoS,
-    retain : Boolean,
+    retain         : Boolean,
+    requestName    : Expression[String],
     val next       : Action
 ) extends MqttAction(mqttComponents, coreComponents) {
 
@@ -28,19 +29,18 @@ class PublishAction(
         connectionId <- session("connectionId").validate[String]
         resolvedTopic <- topic(session)
         resolvedPayload <- payload(session)
+        resolvedRequestName <- requestName(session)
     } yield {
         val requestStartDate = nowMillis
 
-        val requestName = "publish"
-
-        logger.debug(s"${connectionId}: Execute ${requestName}:${resolvedTopic} Payload: ${resolvedPayload}")
+        logger.debug(s"${connectionId}: Execute ${resolvedRequestName}:${resolvedTopic} Payload: ${resolvedPayload}")
 
         connection.publish(resolvedTopic, resolvedPayload, qos, retain, Callback.onSuccess[Void] { _ =>
             val publishTimings = timings(requestStartDate)
 
             statsEngine.logResponse(
                 session,
-                requestName,
+                resolvedRequestName,
                 publishTimings,
                 OK,
                 None,
@@ -53,7 +53,7 @@ class PublishAction(
             logger.warn(s"${connectionId}: Failed to publish on ${resolvedTopic}: ${th}")
             statsEngine.logResponse(
                 session,
-                requestName,
+                resolvedRequestName,
                 publishTimings,
                 KO,
                 None,

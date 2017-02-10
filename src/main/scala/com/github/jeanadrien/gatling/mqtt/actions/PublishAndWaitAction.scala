@@ -27,6 +27,7 @@ class PublishAndWaitAction(
     qos           : QoS,
     retain        : Boolean,
     timeout       : FiniteDuration,
+    requestName   : Expression[String],
     val next      : Action
 ) extends MqttAction(mqttComponents, coreComponents) {
 
@@ -43,14 +44,13 @@ class PublishAndWaitAction(
         resolvedPublishTopic <- publishTopic(session)
         resolvedReceiveTopic <- receiveTopic(session)
         resolvedPayload <- payload(session)
+        resolvedRequestName <- requestName(session)
     } yield {
         implicit val messageTimeout = Timeout(timeout)
 
         val requestStartDate = nowMillis
 
-        val requestName = "publish and wait"
-
-        logger.debug(s"${connectionId} : Execute ${requestName} Payload: ${resolvedPayload} Publish: ${resolvedPublishTopic} Receive: ${resolvedReceiveTopic}")
+        logger.debug(s"${connectionId} : Execute ${resolvedRequestName} Payload: ${resolvedPayload} Publish: ${resolvedPublishTopic} Receive: ${resolvedReceiveTopic}")
 
         val payloadCheck = payloadFeedback(resolvedPayload)
 
@@ -59,7 +59,7 @@ class PublishAndWaitAction(
 
             statsEngine.logResponse(
                 session,
-                requestName,
+                resolvedRequestName,
                 latencyTimings,
                 if (result.isSuccess) OK else KO,
                 None,
