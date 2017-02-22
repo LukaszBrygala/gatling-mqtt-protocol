@@ -7,6 +7,8 @@ import io.gatling.core.session._
 import io.gatling.core.structure.ScenarioContext
 import org.fusesource.mqtt.client.QoS
 
+import scala.concurrent.duration._
+
 /**
   *
   */
@@ -20,7 +22,8 @@ case class ConnectActionBuilder(
         willMessage = None,
         willQos = None,
         willRetain = None
-    )
+    ),
+    connectionTimeout : FiniteDuration = 30 seconds
 ) extends MqttActionBuilder {
 
     def clientId(clientId: Expression[String]) = this.modify(_.connectionSettings.clientId).setTo(Some(clientId))
@@ -30,6 +33,8 @@ case class ConnectActionBuilder(
     def userName(userName: Expression[String]) = this.modify(_.connectionSettings.userName).setTo(Some(userName))
 
     def password(password: Expression[String]) = this.modify(_.connectionSettings.password).setTo(Some(password))
+
+    def connectionTimeout(duration : FiniteDuration) : ConnectActionBuilder = this.modify(_.connectionTimeout).setTo(duration)
 
     def willTopic(willTopic: Expression[String]) = this.modify(_.connectionSettings.willTopic).setTo(Some(willTopic))
 
@@ -47,6 +52,7 @@ case class ConnectActionBuilder(
             mqttComponents(ctx),
             ctx.coreComponents,
             connectionSettings,
+            connectionTimeout,
             next
         )
     }

@@ -79,9 +79,11 @@ class PublishAndWaitAction(
 
             if (result.isFailure) {
                 listener ! CancelWaitForMessage(resolvedReceiveTopic, payloadCheck)
+                next ! session.markAsFailed
             }
-
-            next ! session
+            else {
+                next ! session
+            }
         }
 
         connection.publish(resolvedPublishTopic, resolvedPayload, qos, retain, Callback.onSuccess[Void] { _ =>

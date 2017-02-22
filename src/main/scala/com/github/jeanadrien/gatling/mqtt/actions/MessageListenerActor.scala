@@ -16,6 +16,8 @@ class MessageListenerActor(connectionId : String) extends Actor with StrictLoggi
 
     private var waitingForClose : Option[ActorRef] = None
 
+    private var waitingForConnection : Option[ActorRef] = None
+
     def numPending : Int = pending.values.foldLeft(0)((acc, xs) => acc + xs.length)
 
     private def addPending(topic : String, payloadValidation : Array[Byte] => Boolean, sender : ActorRef) : Unit = {
@@ -44,7 +46,25 @@ class MessageListenerActor(connectionId : String) extends Actor with StrictLoggi
         }
     }
 
+    private def resolveConnectionAwaiter(result : Any) : Unit = {
+        if (waitingForConnection.isDefined) {
+            waitingForConnection.foreach(_ ! result)
+            waitingForConnection = None
+        }
+    }
+
     override def receive = {
+        case WaitForConnect =>
+            if (waitingForConnection.isDefined) {
+                sender() ! akka.actor.Status.Failure(new Exception("We are already waiting for connection"))
+            } else {
+                waitingForConnection = Some(sender())
+                logger.debug(s"${connectionId} : waitForConnectReceived")
+            }
+        case Connected =>
+            resolveConnectionAwaiter(None)
+        case ConnectionFailed(errorMessage) =>
+            resolveConnectionAwaiter(akka.actor.Status.Failure(new Exception(errorMessage)))
         case WaitForMessage(topic, payloadValidation) =>
             if (waitingForClose.isDefined) {
                 sender() ! akka.actor.Status.Failure(new Exception("We are waiting for last messages"))
@@ -87,6 +107,12 @@ class MessageListenerActor(connectionId : String) extends Actor with StrictLoggi
 object MessageListenerActor {
 
     // actor messages
+    case object WaitForConnect
+
+    case object Connected
+
+    case class ConnectionFailed(errMsg: String)
+
     case class WaitForMessage(topic : String, payloadValidation : Array[Byte] => Boolean)
 
     case class CancelWaitForMessage(topic : String, payloadValidation : Array[Byte] => Boolean)

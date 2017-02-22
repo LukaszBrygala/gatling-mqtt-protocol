@@ -1,11 +1,17 @@
 package com.github.jeanadrien.gatling.mqtt.actions
 
+import akka.actor.ActorRef
+import akka.pattern.AskTimeoutException
+import akka.util.Timeout
 import com.github.jeanadrien.gatling.mqtt.protocol.{ConnectionSettings, MqttComponents}
 import io.gatling.commons.stats._
 import io.gatling.commons.util.ClockSingleton._
 import io.gatling.core.CoreComponents
 import io.gatling.core.Predef._
 import io.gatling.core.action.Action
+
+import scala.util.{Failure, Success}
+import scala.concurrent.duration._
 
 /**
   *
@@ -14,8 +20,13 @@ class ConnectAction(
     mqttComponents : MqttComponents,
     coreComponents : CoreComponents,
     connectionSettings : ConnectionSettings,
+    connectionTimeout  : FiniteDuration,
     val next : Action
 ) extends MqttAction(mqttComponents, coreComponents) {
+
+    import MessageListenerActor._
+    import akka.pattern.ask
+    import mqttComponents.system.dispatcher
 
     override val name = genName("mqttConnect")
 
@@ -36,34 +47,43 @@ class ConnectAction(
             val listener = new ConnectionListener(connectionId, messageListener)
             connection.listener(listener)
 
+            implicit val messageTimeout = Timeout(connectionTimeout)
+
+            messageListener ? WaitForConnect onComplete { result =>
+                logger.debug(s"${connectionId} : Connect onComplete ${result}")
+                val latencyTimings = timings(requestStartDate)
+
+                statsEngine.logResponse(
+                    session,
+                    requestName,
+                    latencyTimings,
+                    if (result.isSuccess) OK else KO,
+                    None,
+                    result match {
+                        case Success(_) =>
+                            None
+                        case Failure(t) if t.isInstanceOf[AskTimeoutException] =>
+                            Some("Wait for CONNECT timed out")
+                        case Failure(t) =>
+                            Some(t.getMessage)
+                    }
+                )
+
+                if (result.isSuccess) {
+                    next ! session.
+                        set("connection", connection).
+                        set("connectionId", connectionId).
+                        set("listener", messageListener)
+                }
+                else {
+                    next ! session.markAsFailed
+                }
+            }
+
             connection.connect(Callback.onSuccess[Void] { _ =>
-                val connectTiming = timings(requestStartDate)
-
-                statsEngine.logResponse(
-                    session,
-                    requestName,
-                    connectTiming,
-                    OK,
-                    None,
-                    None
-                )
-
-                next ! session.
-                    set("connection", connection).
-                    set("connectionId", connectionId).
-                    set("listener", messageListener)
+                messageListener ! Connected
             } onFailure { th =>
-
-                val connectTiming = timings(requestStartDate)
-                logger.warn(s"${connectionId}: Failed to connect to MQTT: ${th}")
-                statsEngine.logResponse(
-                    session,
-                    requestName,
-                    connectTiming,
-                    KO,
-                    None,
-                    Some(th.getMessage)
-                )
+                messageListener ! ConnectionFailed(th.getMessage)
             })
         }
     }
