@@ -81,9 +81,10 @@ class ConnectAction(
             }
 
             connection.connect(Callback.onSuccess[Void] { _ =>
-                messageListener ! Connected
+                // nop
             } onFailure { th =>
-                messageListener ! ConnectionFailed(th.getMessage)
+                logger.warn(s"${connectionId}: Failed to connect: ${th}")
+                statsEngine.reportUnbuildableRequest(session, "connect", th.getMessage)
             })
         }
     }
