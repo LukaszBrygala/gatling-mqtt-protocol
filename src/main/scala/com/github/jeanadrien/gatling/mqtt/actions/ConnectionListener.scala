@@ -27,7 +27,6 @@ class ConnectionListener(val connectionId : String, actor : ActorRef) extends Li
 
     override def onConnected() : Unit = {
         logger.debug(s"${connectionId}: client is now connected.")
-        actor ! Connected
     }
 
     override def onFailure(value : Throwable) : Unit = {
@@ -36,7 +35,6 @@ class ConnectionListener(val connectionId : String, actor : ActorRef) extends Li
 
     override def onDisconnected() : Unit = {
         logger.debug(s"${connectionId}: has been disconnected.")
-        actor ! Disconnected
     }
 }
 

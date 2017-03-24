@@ -18,6 +18,8 @@ class MessageListenerActor(connectionId : String) extends Actor with StrictLoggi
 
     private var waitingForConnection : Option[ActorRef] = None
 
+    private var waitingForSubscription : Option[ActorRef] = None
+
     private var waitingForDisconnect : Option[ActorRef] = None
 
     def numPending : Int = pending.values.foldLeft(0)((acc, xs) => acc + xs.length)
@@ -55,6 +57,13 @@ class MessageListenerActor(connectionId : String) extends Actor with StrictLoggi
         }
     }
 
+    private def resolveSubscriptionAwaiter(result : Any) : Unit = {
+        if (waitingForSubscription.isDefined) {
+            waitingForSubscription.foreach(_ ! result)
+            waitingForSubscription = None
+        }
+    }
+
     private def resolveDisconnectAwaiter(result : Any) : Unit = {
         if (waitingForDisconnect.isDefined) {
             waitingForDisconnect.foreach(_ ! result)
@@ -72,6 +81,19 @@ class MessageListenerActor(connectionId : String) extends Actor with StrictLoggi
             }
         case Connected =>
             resolveConnectionAwaiter(None)
+        case ConnectionFailed(errorMessage) =>
+            resolveConnectionAwaiter(akka.actor.Status.Failure(new Exception(errorMessage)))
+        case WaitForSubscribe =>
+            if (waitingForSubscription.isDefined) {
+                sender() ! akka.actor.Status.Failure(new Exception("We are already waiting for subsciption"))
+            } else {
+                waitingForSubscription = Some(sender())
+                logger.debug(s"${connectionId} : waitForSubscripotionReceived")
+            }
+        case Subscribed =>
+            resolveSubscriptionAwaiter(None)
+        case SubscribeFailed(errorMessage) =>
+            resolveSubscriptionAwaiter(akka.actor.Status.Failure(new Exception(errorMessage)))
         case WaitForDisconnect =>
             if (waitingForDisconnect.isDefined) {
                 sender() ! akka.actor.Status.Failure(new Exception("We are already waiting for disconnect"))
@@ -81,6 +103,8 @@ class MessageListenerActor(connectionId : String) extends Actor with StrictLoggi
             }
         case Disconnected =>
             resolveDisconnectAwaiter(None)
+        case DisconnectFailed(errorMessage) =>
+            resolveDisconnectAwaiter(akka.actor.Status.Failure(new Exception(errorMessage)))
         case WaitForMessage(topic, payloadValidation) =>
             if (waitingForClose.isDefined) {
                 sender() ! akka.actor.Status.Failure(new Exception("We are waiting for last messages"))
@@ -127,9 +151,19 @@ object MessageListenerActor {
 
     case object Connected
 
+    case class ConnectionFailed(errMsg: String)
+
+    case object WaitForSubscribe
+
+    case object Subscribed
+
+    case class SubscribeFailed(errMsg: String)
+
     case object WaitForDisconnect
 
     case object Disconnected
+
+    case class DisconnectFailed(errMsg: String)
 
     case class WaitForMessage(topic : String, payloadValidation : Array[Byte] => Boolean)
 

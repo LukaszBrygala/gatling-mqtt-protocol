@@ -70,13 +70,11 @@ class DisconnectAction(
               }
         }
 
-        connection.disconnect(Callback.onSuccess { _ : Void =>
-            // nop
+        connection.connect(Callback.onSuccess[Void] { _ =>
+            listener ! Disconnected
         } onFailure { th =>
-            logger.warn(s"${connectionId}: Failed to disconnect: ${th}")
-            statsEngine.reportUnbuildableRequest(session, "disconnect", th.getMessage)
+            listener ! DisconnectFailed(th.getMessage)
         })
-
     })
 
 }
