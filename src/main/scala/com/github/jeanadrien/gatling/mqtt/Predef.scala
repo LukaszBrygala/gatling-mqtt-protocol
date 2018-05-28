@@ -23,8 +23,8 @@ object Predef {
     ) = PublishActionBuilder(topic, payload.map(_.toByteArray))
 
     def publishAndWait[T <% MqttPayload](
-        topic : Expression[String], payload : Expression[T]
-    ) = PublishAndWaitActionBuilder(topic, payload.map(_.toByteArray))
+        publishTopic : Expression[String], receiveTopic : Expression[String], payload : Expression[T]
+    ) = PublishAndWaitActionBuilder(publishTopic, receiveTopic, payload.map(_.toByteArray))
 
     def waitForMessages = WaitForMessagesActionBuilder
 

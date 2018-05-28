@@ -26,7 +26,7 @@ object MqttCommands {
     case class OnPublish(topic : String, payload : Array[Byte]) extends MqttCommands
 
     case class PublishAndWait(
-        topic : String, payload : Array[Byte], payloadFeedback : FeedbackFunction, qos : MqttQoS, retain : Boolean
+        publishTopic : String, receiveTopic : String, payload : Array[Byte], payloadFeedback : FeedbackFunction, qos : MqttQoS, retain : Boolean
     ) extends MqttCommands
 
     case class PublishAckRegisterFeedback(

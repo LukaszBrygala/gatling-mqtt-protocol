@@ -21,7 +21,8 @@ import scala.util.{Failure, Success}
 class PublishAndWaitAction(
     mqttComponents : MqttComponents,
     coreComponents  : CoreComponents,
-    topic           : Expression[String],
+    publishTopic    : Expression[String],
+    receiveTopic    : Expression[String],
     payload         : Expression[Array[Byte]],
     payloadFeedback : Array[Byte] => Array[Byte] => Boolean,
     qos             : MqttQoS,
@@ -38,7 +39,8 @@ class PublishAndWaitAction(
     override def execute(session : Session) : Unit = recover(session)(for {
         connection <- session("engine").validate[ActorRef]
         connectionId <- session("connectionId").validate[String]
-        resolvedTopic <- topic(session)
+        resolvedPublishTopic <- publishTopic(session)
+        resolvedReceiveTopic <- receiveTopic(session)
         resolvedPayload <- payload(session)
     } yield {
         implicit val messageTimeout = Timeout(timeout)
@@ -52,7 +54,8 @@ class PublishAndWaitAction(
         val payloadCheck = payloadFeedback(resolvedPayload)
 
         (connection ? MqttCommands.PublishAndWait(
-            topic = resolvedTopic,
+            publishTopic = resolvedPublishTopic,
+            receiveTopic = resolvedReceiveTopic,
             payload = resolvedPayload,
             payloadFeedback = payloadCheck,
             qos = qos,
@@ -83,11 +86,11 @@ class PublishAndWaitAction(
                     th match {
                         case t : AskTimeoutException =>
                             logger
-                                .warn(s"${connectionId}: Wait for PUBLISH back from mqtt timed out on ${resolvedTopic}")
+                                .warn(s"${connectionId}: Wait for PUBLISH back from mqtt timed out on ${resolvedReceiveTopic}")
                             Some("Wait for PUBLISH timed out")
                         case t =>
                             logger
-                                .warn(s"${connectionId}: Failed to receive PUBLISH back from mqtt on ${resolvedTopic}: ${t}")
+                                .warn(s"${connectionId}: Failed to receive PUBLISH back from mqtt on ${resolvedReceiveTopic}: ${t}")
                             Some(t.getMessage)
                     }
                 )
